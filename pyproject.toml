@@ -1,0 +1,44 @@
+[project]
+name = "opioids-analysis"
+version = "0.1.0"
+description = "Analysis of the Opioids dataset from the article 'Cortico-Subcortical Dysconnectivity Following Opioid Administration Correlates with Analgesia in the Awake Mouse Brain'."
+authors = [
+    { name = "Samuel Le Meur-Diebolt", email = "samuel@diebolt.io" },
+    { name = "Jean-Charles Mariani", email = "jean-charles.mariani@cri-paris.org" },
+]
+dependencies = [
+    "colorcet~=3.1.0",
+    "h5py~=3.10.0",
+    "ipykernel~=6.29.3",
+    "joblib~=1.3.2",
+    "jupyterlab~=4.1.4",
+    "matplotlib~=3.8.3",
+    "mypy~=1.8.0",
+    "networkx~=3.2.1",
+    "nibabel~=5.2.1",
+    "nilearn==0.10.1",
+    "nitime~=0.10.2",
+    "numpy~=1.26.4",
+    "pybids~=0.16.4",
+    "ruff~=0.3.1",
+    "scipy~=1.12.0",
+    "statsmodels~=0.14.1",
+    "tqdm~=4.66.2",
+    "pandas[excel]~=2.2.1",
+]
+readme = "README.md"
+requires-python = ">= 3.11"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = []
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/opioids_analysis"]
