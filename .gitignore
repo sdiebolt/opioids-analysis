@@ -1,2 +1,9 @@
 __pycache__/
 .ipynb_checkpoints/
+
+# Figures
+*.png
+*.svg
+*.tiff
+figures/
+

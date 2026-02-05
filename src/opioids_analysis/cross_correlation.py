@@ -134,6 +134,7 @@ def write_session_subject_level_xcorr(
     path: str | Path,
     session: str,
     results: SessionSubjectLevelXCorrMaps,
+    overwrite: bool = False,
 ) -> None:
     """Write subject-level cross-correlation maps for all subjects of a session.
 
@@ -154,8 +155,18 @@ def write_session_subject_level_xcorr(
 
         * ``xcorr_maps``: dictionary with subject names as keys and
           cross-correlation maps as values, with shape ``(phases, rois, x, y, lags)``.
+    overwrite : bool, optional
+        If ``True``, overwrite existing session data. If ``False`` and session data
+        already exists, skip writing. Default is ``False``.
     """
     with h5.File(path, "a") as f:
+        # Check if session already exists
+        if "xcorr_maps" in f and session in f["xcorr_maps"]:
+            if not overwrite:
+                return
+            # Delete existing session data to overwrite
+            del f[f"xcorr_maps/{session}"]
+
         for subject in results["xcorr_maps"].keys():
             f.create_dataset(
                 f"xcorr_maps/{session}/{subject}", data=results["xcorr_maps"][subject]
@@ -317,7 +328,10 @@ def read_session_group_level_xcorr(path: str | Path, session) -> dict[str, npt.N
 
 
 def write_session_group_level_xcorr(
-    path: str | Path, session: str, results: dict[str, npt.NDArray]
+    path: str | Path,
+    session: str,
+    results: dict[str, npt.NDArray],
+    overwrite: bool = False,
 ) -> None:
     """Write group-level cross-correlation maps from a session.
 
@@ -339,6 +353,16 @@ def write_session_group_level_xcorr(
           lags, 3, x, y)``. The third dimension corresponds to the mean
           cross-correlation maps, the difference maps between session and control, and
           the significance maps.
+    overwrite : bool, optional
+        If ``True``, overwrite existing session data. If ``False`` and session data
+        already exists, skip writing. Default is ``False``.
     """
     with h5.File(path, "a") as f:
+        # Check if session already exists
+        if "xcorr_maps" in f and session in f["xcorr_maps"]:
+            if not overwrite:
+                return
+            # Delete existing session data to overwrite
+            del f[f"xcorr_maps/{session}"]
+
         f.create_dataset(f"xcorr_maps/{session}", data=results["xcorr_maps"])

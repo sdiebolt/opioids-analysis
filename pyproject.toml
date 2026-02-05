@@ -1,7 +1,7 @@
 [project]
 name = "opioids-analysis"
 version = "0.1.0"
-description = "Analysis of the Opioids dataset from the article 'Cortico-Subcortical Dysconnectivity Following Opioid Administration Correlates with Analgesia in the Awake Mouse Brain'."
+description = "Analysis of the Opioids dataset from the article 'Opioid-Specific Brain Connectivity Dynamics Distinguish Analgesia from Secondary Effects'."
 authors = [
     { name = "Samuel Le Meur-Diebolt", email = "samuel@diebolt.io" },
     { name = "Jean-Charles Mariani", email = "jean-charles.mariani@cri-paris.org" },
@@ -26,31 +26,14 @@ dependencies = [
     "tqdm~=4.66.2",
     "pandas[excel]~=2.2.1",
     "seaborn>=0.13.2",
+    "ipython>=9.4.0",
+    "rich>=14.0.0",
+    "pyqt5>=5.15.11",
+    "scikit-posthocs>=0.11.4",
 ]
 readme = "README.md"
 requires-python = ">= 3.11"
 
-[tool.ruff]
-# Always generate Python 3.10-compatible code.
-target-version = "py310"
-line-length = 88
-src = ["src"]
-
-[tool.ruff.lint]
-# Enable the pycodestyle error and warnings (`E`, `W`) rules, Pyflakes (`F`) rules,
-# McCabe complexity (`C901`) rule, isort (`I`) rules for importing, pyupgrade (`UP`)
-# rules.
-select = ["E", "F", "W", "I", "UP"]
-
-# Allow autofix for all enabled rules (when `--fix`) is provided.
-fixable = ["ALL"]
-
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.metadata]
-allow-direct-references = true
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/opioids_analysis"]
+requires = ["uv_build>=0.9.5,<0.10.0"]
+build-backend = "uv_build"

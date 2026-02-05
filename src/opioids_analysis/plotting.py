@@ -11,8 +11,11 @@ from matplotlib.colors import Colormap
 from matplotlib.figure import Figure
 from nilearn import image
 
-from opioids_analysis.pearson import read_session_group_level_pearson
 from opioids_analysis.cross_correlation import read_session_group_level_xcorr
+from opioids_analysis.pearson import (
+    read_group_level_pearson_anova,
+    read_session_group_level_pearson,
+)
 
 
 def plot_seed_map(
@@ -448,12 +451,174 @@ def plot_all_phases_circular_graphs(
     return None
 
 
+def plot_group_level_pearson_anova(
+    group_level_path: str | Path,
+    template_img: nib.nifti1.Nifti1Image,
+    rois_img: nib.nifti1.Nifti1Image,
+    graph_roi_order: tuple[int, ...],
+    graph_roi_labels: dict[int, int] | None,
+    output_path: str | Path,
+) -> None:
+    """Plot figures from the group-level Pearson correlation analysis of a session.
+
+    Parameters
+    ----------
+    group_level_path : str or pathlib.Path
+        Path of the HDF5 file containing group-level results.
+    template_img : nibabel.nifti1.Nifti1Image
+        Template image, used as background in significance seed-based maps.
+    rois_img : nibabel.nifti1.Nifti1Image
+        Integer ROI image used to plot ROI contours on seed-based maps. 0 corresponds to
+        background.
+    graph_roi_order : list of int
+        Ordering of the ROIs in circular graphs.
+    graph_roi_labels : dict or None, optional
+        Node labels in a dictionary of labels keyed by node. If ``None``, indices from 0
+        to ``len(matrix)`` will be used. Default is ``None``.
+    output_path : str or pathlib.Path
+        Path to the folder where figures will be saved.
+    """
+    anova_output_path = Path(output_path) / "anova"
+    anova_output_path.mkdir(parents=True, exist_ok=True)
+
+    group_level_pearson_anova = read_group_level_pearson_anova(group_level_path)
+    sessions_cor_matrices, sessions_seed_maps, sessions = (
+        group_level_pearson_anova["correlation_matrices"],
+        group_level_pearson_anova["seed_maps"],
+        group_level_pearson_anova["sessions"],
+    )
+
+    for session_index, session in enumerate(sessions):
+        session_output_path = anova_output_path / f"{session}"
+        session_output_path.mkdir(parents=True, exist_ok=True)
+
+        cor_matrices = sessions_cor_matrices[:, :, session_index]
+        seed_maps = sessions_seed_maps[:, :, :, session_index]
+
+        # Group-average correlation matrix.
+        plot_all_phases_correlation_matrices(
+            cor_matrices[:, 0],
+            vmax=1,
+            vmin=-1,
+            cmap=cc.cm.coolwarm,
+            output_path=session_output_path / "mean-correlation-matrix.tiff",
+        )
+
+        # Differences between average correlation matrix and control.
+        plot_all_phases_correlation_matrices(
+            cor_matrices[:, 1],
+            vmax=0.5,
+            vmin=-0.5,
+            cmap=cc.cm.gwv,
+            output_path=session_output_path / "differences-correlation-matrices.tiff",
+        )
+
+        # Significant differences matrix.
+        thresholded_differences = cor_matrices[:, 1].copy()
+        thresholded_differences[cor_matrices[:, 2] == 0] = 0
+        plot_all_phases_correlation_matrices(
+            thresholded_differences,
+            vmax=0.5,
+            vmin=-0.5,
+            cmap=cc.cm.gwv,
+            output_path=session_output_path / "significance-correlation-matrix.tiff",
+        )
+
+        # Combined group-average and significant differences matrix.
+        plot_all_phases_correlation_matrices(
+            cor_matrices[:, 0],
+            upper_triangle=thresholded_differences,
+            vmax=1,
+            vmin=-1,
+            cmap=cc.cm.coolwarm,
+            upper_triangle_cmap=cc.cm.gwv,
+            upper_triangle_vmax=0.5,
+            upper_triangle_vmin=-0.5,
+            output_path=session_output_path
+            / "mean-and-significance-correlation-matrix.tiff",
+        )
+
+        # Group-average circular graph.
+        plot_all_phases_circular_graphs(
+            cor_matrices[:, 0, graph_roi_order][..., graph_roi_order],
+            edge_threshold=0.3,
+            node_vmax=0.2,
+            node_vmin=-0.2,
+            labels=graph_roi_labels,
+            output_path=session_output_path / "mean-circular-graph.tiff",
+        )
+
+        # Difference between average circular graph and control.
+        differences = cor_matrices[:, 1].copy()
+        differences[cor_matrices[:, 2] == 0] = 0
+        plot_all_phases_circular_graphs(
+            differences[:, graph_roi_order][..., graph_roi_order],
+            edge_threshold=0,
+            edge_vmax=0.5,
+            edge_vmin=-0.5,
+            edge_cmap=cc.cm.gwv,
+            node_vmax=0.2,
+            node_vmin=-0.2,
+            node_cmap=cc.cm.gwv,
+            labels=graph_roi_labels,
+            output_path=session_output_path / "differences-circular-graphs.tiff",
+        )
+
+        n_rois = cor_matrices.shape[-1]
+        for roi_index in range(n_rois):
+            current_roi_mask = (
+                image.math_img(f"x == {roi_index + 1}", x=rois_img)
+                .get_fdata()
+                .squeeze()
+                .astype(bool)
+            )
+
+            # Group-average seed-based map.
+            plot_all_phases_seed_maps(
+                seed_maps[:, roi_index, 0],
+                seed_roi=current_roi_mask,
+                vmax=1,
+                vmin=-1,
+                cmap=cc.cm.coolwarm,
+                output_path=session_output_path
+                / f"mean-seed-map_roi-{roi_index + 1:02d}.tiff",
+            )
+
+            # Difference between average seed-based map and control.
+            plot_all_phases_seed_maps(
+                seed_maps[:, roi_index, 1],
+                seed_roi=current_roi_mask,
+                seed_roi_color="red",
+                vmax=0.5,
+                vmin=-0.5,
+                cmap=cc.cm.gwv,
+                output_path=session_output_path
+                / f"difference-seed-map_roi-{roi_index + 1:02d}.tiff",
+            )
+
+            # Significance seed-based map.
+            thresholded_differences = seed_maps[:, roi_index, 1].copy()
+            thresholded_differences[seed_maps[:, roi_index, 2] == 0] = np.nan
+            plot_all_phases_seed_maps(
+                thresholded_differences,
+                background=template_img.get_fdata().squeeze(),
+                background_cmap="gray",
+                seed_roi=current_roi_mask,
+                seed_roi_color="red",
+                vmax=0.5,
+                vmin=-0.5,
+                cmap=cc.cm.gwv,
+                output_path=session_output_path
+                / f"significance-seed-map_roi-{roi_index + 1:02d}.tiff",
+            )
+
+
 def plot_group_level_pearson(
     group_level_path: str | Path,
     session: str,
     template_img: nib.nifti1.Nifti1Image,
     rois_img: nib.nifti1.Nifti1Image,
-    graph_roi_order: list[int],
+    graph_roi_order: tuple[int, ...],
     graph_roi_labels: dict[int, int] | None,
     output_path: str | Path,
 ) -> None:
@@ -470,7 +635,7 @@ def plot_group_level_pearson(
     rois_img : nibabel.nifti1.Nifti1Image
         Integer ROI image used to plot ROI contours on seed-based maps. 0 corresponds to
         background.
-    graph_roi_order : list of int
+    graph_roi_order : tuple of int
         Ordering of the ROIs in circular graphs.
     graph_roi_labels : dict or None, optional
         Node labels in a dictionary of labels keyed by node. If ``None``, indices from 0
@@ -488,7 +653,7 @@ def plot_group_level_pearson(
     )
 
     # Group-average correlation matrix.
-    _ = plot_all_phases_correlation_matrices(
+    plot_all_phases_correlation_matrices(
         cor_matrices[:, 0],
         vmax=1,
         vmin=-1,
@@ -497,7 +662,7 @@ def plot_group_level_pearson(
     )
 
     # Differences between average correlation matrix and control.
-    _ = plot_all_phases_correlation_matrices(
+    plot_all_phases_correlation_matrices(
         cor_matrices[:, 1],
         vmax=0.5,
         vmin=-0.5,
@@ -508,7 +673,7 @@ def plot_group_level_pearson(
     # Significant differences matrix.
     thresholded_differences = cor_matrices[:, 1].copy()
     thresholded_differences[cor_matrices[:, 2] == 0] = 0
-    _ = plot_all_phases_correlation_matrices(
+    plot_all_phases_correlation_matrices(
         thresholded_differences,
         vmax=0.5,
         vmin=-0.5,
@@ -517,7 +682,7 @@ def plot_group_level_pearson(
     )
 
     # Combined group-average and significant differences matrix.
-    _ = plot_all_phases_correlation_matrices(
+    plot_all_phases_correlation_matrices(
         cor_matrices[:, 0],
         upper_triangle=thresholded_differences,
         vmax=1,
@@ -531,7 +696,7 @@ def plot_group_level_pearson(
     )
 
     # Group-average circular graph.
-    _ = plot_all_phases_circular_graphs(
+    plot_all_phases_circular_graphs(
         cor_matrices[:, 0, graph_roi_order][..., graph_roi_order],
         edge_threshold=0.3,
         node_vmax=0.2,
@@ -543,7 +708,7 @@ def plot_group_level_pearson(
     # Difference between average circular graph and control.
     differences = cor_matrices[:, 1].copy()
     differences[cor_matrices[:, 2] == 0] = 0
-    _ = plot_all_phases_circular_graphs(
+    plot_all_phases_circular_graphs(
         differences[:, graph_roi_order][..., graph_roi_order],
         edge_threshold=0,
         edge_vmax=0.5,

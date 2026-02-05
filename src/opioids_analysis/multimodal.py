@@ -39,7 +39,7 @@ def load_instant_velocity(path: str | Path) -> npt.NDArray:
 def compute_moving_time_percentage(
     velocity: npt.NDArray, window_size: int = 1200, threshold: float = 5.0
 ) -> npt.NDArray:
-    """Compute the moving time percentage (speed above `th`) on sub-windows.
+    """Compute the moving time percentage (speed above `threshold`) on sub-windows.
 
     Parameters
     ----------
@@ -55,11 +55,41 @@ def compute_moving_time_percentage(
     Returns
     -------
     numpy.ndarray
-        Array of size (v.size // window_size,) containing the percentage of time the
+        Array of size ``v.size // window_size`` containing the percentage of time the
         mouse is moving with velocity above `threshold` in each window.
     """
 
-    return (
+    return 100 * (
         np.lib.stride_tricks.sliding_window_view(velocity, window_size)[::window_size]
         > threshold
-    ).sum(axis=1) / window_size
+    ).mean(axis=1)
+
+
+def compute_max_velocities(
+    velocity: npt.NDArray, window_size: int = 1200
+) -> npt.NDArray:
+    """Compute the max velocities in sub-windows.
+
+    Max velocities are computed using the 99.9% percentile of the velocity in each
+    window to avoid outliers.
+
+    Parameters
+    ----------
+    velocity : numpy.ndarray
+        Instant mouse velocity array.
+    window_size : int, optional
+        Size of the windows in which to separate `v`. The moving time percentage will be
+        computed in each window.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of size ``v.size // window_size`` containing the percentage of time the
+        mouse is moving with velocity above `threshold` in each window.
+    """
+
+    return np.percentile(
+        np.lib.stride_tricks.sliding_window_view(velocity, window_size)[::window_size],
+        99.9,
+        axis=1,
+    )
